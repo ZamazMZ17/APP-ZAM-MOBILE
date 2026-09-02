@@ -20,6 +20,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ChatBubbleOutline
+import androidx.compose.material.icons.outlined.Mic
+import androidx.compose.material.icons.outlined.Send
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Link
+import androidx.compose.material.icons.outlined.SystemUpdate
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -28,6 +35,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import okhttp3.MediaType.Companion.toMediaType
@@ -73,21 +81,20 @@ private fun ZamLinkApp(context: Context) {
         if (granted) startVoiceCapture(context, { isListening = it }, { command = it }, { result = it })
         else result = "Necesito permiso de micrófono para transcribir tu voz."
     }
-    MaterialTheme(colorScheme = darkColorScheme(primary = Green, surface = Panel, background = Ink)) {
+    MaterialTheme(colorScheme = darkColorScheme(primary = Green, surface = Panel, background = Ink), typography = Typography(defaultFontFamily = FontFamily.SansSerif)) {
         Scaffold(
             containerColor = Ink,
+            contentWindowInsets = WindowInsets.safeDrawing,
             bottomBar = {
-                Surface(color = Panel) {
-                    Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp)) {
-                        TextButton({ screen = AppScreen.CHAT }, Modifier.weight(1f)) { Text("CHAT", color = if (screen == AppScreen.CHAT) Green else Muted) }
-                        TextButton({ screen = AppScreen.SETTINGS }, Modifier.weight(1f)) { Text("AJUSTES", color = if (screen == AppScreen.SETTINGS) Green else Muted) }
-                    }
+                NavigationBar(containerColor = Panel) {
+                    NavigationBarItem(selected = screen == AppScreen.CHAT, onClick = { screen = AppScreen.CHAT }, icon = { Icon(Icons.Outlined.ChatBubbleOutline, "Chat") }, label = { Text("Chat") })
+                    NavigationBarItem(selected = screen == AppScreen.SETTINGS, onClick = { screen = AppScreen.SETTINGS }, icon = { Icon(Icons.Outlined.Settings, "Ajustes") }, label = { Text("Ajustes") })
                 }
             }
         ) { inset ->
             if (screen == AppScreen.CHAT) {
                 ChatScreen(
-                    messages = messages, command = command, onCommandChange = { command = it }, isListening = isListening,
+                    messages = messages, command = command, onCommandChange = { command = it }, isListening = isListening, state = state,
                     onVoice = {
                         if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED)
                             startVoiceCapture(context, { isListening = it }, { command = it }, { result = it })
@@ -126,28 +133,28 @@ private fun ZamLinkApp(context: Context) {
 
 @Composable
 private fun ChatScreen(
-    messages: List<ChatMessage>, command: String, onCommandChange: (String) -> Unit, isListening: Boolean,
+    messages: List<ChatMessage>, command: String, onCommandChange: (String) -> Unit, isListening: Boolean, state: String,
     onVoice: () -> Unit, onSend: () -> Unit, modifier: Modifier = Modifier
 ) {
     Column(modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
-            Image(painterResource(R.drawable.cat_icon_launcher), "Zam", Modifier.size(48.dp).clip(CircleShape).background(Color(0xFF10241E)), contentScale = ContentScale.Crop)
+        Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Image(painterResource(R.drawable.cat_icon_launcher), "Perfil de Zam", Modifier.size(46.dp).clip(CircleShape).background(Color(0xFF10241E)), contentScale = ContentScale.Crop)
             Spacer(Modifier.width(12.dp))
             Column {
-                Text("Zam", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Bold)
-                Text("Asistente de Ekars", color = Muted, fontSize = 12.sp)
+                Text("Zam", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+                Text(if (state == "Conectado") "En línea · Ekars conectado" else "Asistente de Ekars", color = if (state == "Conectado") Green else Muted, fontSize = 12.sp)
             }
         }
-        LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp), contentPadding = PaddingValues(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             items(messages) { message -> ChatBubble(message) }
         }
-        Surface(color = Panel, modifier = Modifier.fillMaxWidth()) {
+        Surface(color = Panel, modifier = Modifier.fillMaxWidth().imePadding()) {
             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(command, onCommandChange, Modifier.fillMaxWidth(), minLines = 1, maxLines = 4,
-                    placeholder = { Text("Escribe una orden para Zam…") })
+                    placeholder = { Text("Escribe una orden para Zam…") }, leadingIcon = { Icon(Icons.Outlined.ChatBubbleOutline, null) })
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    OutlinedButton(onVoice, Modifier.weight(1f), enabled = !isListening) { Text(if (isListening) "ESCUCHANDO…" else "VOZ") }
-                    Button(onSend, Modifier.weight(1f), enabled = command.isNotBlank()) { Text("ENVIAR") }
+                    OutlinedButton(onVoice, Modifier.weight(1f), enabled = !isListening) { Icon(Icons.Outlined.Mic, null); Spacer(Modifier.width(7.dp)); Text(if (isListening) "Escuchando" else "Voz") }
+                    Button(onSend, Modifier.weight(1f), enabled = command.isNotBlank()) { Text("Enviar"); Spacer(Modifier.width(7.dp)); Icon(Icons.Outlined.Send, null) }
                 }
             }
         }
@@ -159,7 +166,7 @@ private fun ChatBubble(message: ChatMessage) {
     val alignment = if (message.fromZam) Alignment.Start else Alignment.End
     val color = if (message.fromZam) ZamBubble else Color(0xFF176B50)
     Column(Modifier.fillMaxWidth(), horizontalAlignment = alignment) {
-        Card(colors = CardDefaults.cardColors(containerColor = color), shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth(0.84f)) {
+        Card(colors = CardDefaults.cardColors(containerColor = color), shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth(0.82f)) {
             Text(message.text, color = Color.White, modifier = Modifier.padding(14.dp))
         }
     }
@@ -170,20 +177,23 @@ private fun SettingsScreen(
     endpoint: String, onEndpointChange: (String) -> Unit, state: String, result: String,
     onTest: () -> Unit, onUpdate: () -> Unit, modifier: Modifier = Modifier
 ) {
-    Column(modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Image(painterResource(R.drawable.cat_icon_launcher), "Zam", Modifier.size(48.dp).clip(CircleShape).background(Color(0xFF10241E)), contentScale = ContentScale.Crop)
             Spacer(Modifier.width(12.dp))
-            Column { Text("Ajustes", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold); Text(state, color = if (state == "Conectado") Green else Muted, fontSize = 12.sp) }
+            Column { Text("Ajustes", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold); Text("Conexión y aplicación", color = Muted, fontSize = 12.sp) }
         }
-        Text("CONEXIÓN CON EKARS", color = Muted, fontSize = 12.sp, letterSpacing = 1.sp)
-        OutlinedTextField(endpoint, onEndpointChange, Modifier.fillMaxWidth(), singleLine = true,
-            label = { Text("Dirección segura de Ekars") }, placeholder = { Text("https://ekars.tu-dominio.com") })
-        Button(onTest, Modifier.fillMaxWidth()) { Text("PROBAR CONEXIÓN") }
-        Card(colors = CardDefaults.cardColors(containerColor = Panel), modifier = Modifier.fillMaxWidth()) { Text(result, color = Color.White, modifier = Modifier.padding(14.dp)) }
-        HorizontalDivider(color = Color(0xFF263442))
+        Text("CONEXIÓN", color = Muted, fontSize = 12.sp, letterSpacing = 1.sp)
+        Card(colors = CardDefaults.cardColors(containerColor = Panel), modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Outlined.Link, null, tint = Green); Spacer(Modifier.width(10.dp)); Text(state, color = Color.White, fontWeight = FontWeight.Medium) }
+                OutlinedTextField(endpoint, onEndpointChange, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Dirección segura de Ekars") }, placeholder = { Text("https://ekars.tu-dominio.com") })
+                Button(onTest, Modifier.fillMaxWidth()) { Text("Probar conexión") }
+            }
+        }
+        Card(colors = CardDefaults.cardColors(containerColor = Panel), modifier = Modifier.fillMaxWidth()) { Text(result, color = Muted, modifier = Modifier.padding(14.dp), fontSize = 14.sp) }
         Text("APLICACIÓN", color = Muted, fontSize = 12.sp, letterSpacing = 1.sp)
-        OutlinedButton(onUpdate, Modifier.fillMaxWidth()) { Text("BUSCAR ACTUALIZACIÓN") }
+        OutlinedButton(onUpdate, Modifier.fillMaxWidth()) { Icon(Icons.Outlined.SystemUpdate, null); Spacer(Modifier.width(8.dp)); Text("Buscar actualización") }
     }
 }
 
