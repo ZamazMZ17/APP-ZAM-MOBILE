@@ -26,8 +26,11 @@ import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.Send
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Link
+import androidx.compose.material.icons.outlined.DarkMode
+import androidx.compose.material.icons.outlined.LightMode
 import androidx.compose.material.icons.outlined.SystemUpdate
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -53,7 +56,34 @@ private val Ink = Color(0xFF080B10)
 private val Panel = Color(0xFF111720)
 private val Green = Color(0xFF35D49A)
 private val Muted = Color(0xFF9AA7B5)
-private val ZamBubble = Color(0xFF17212D)
+private val Cream = Color(0xFFF7F0E4)
+private val CreamSurface = Color(0xFFFFFAF3)
+private val Brown = Color(0xFF6C4830)
+private val DeepBrown = Color(0xFF3E281B)
+private val SoftBrown = Color(0xFFE9DDCB)
+
+private val CreamScheme = lightColorScheme(
+    primary = Brown,
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFFE7D0B9),
+    onPrimaryContainer = DeepBrown,
+    secondary = Color(0xFF8A6045),
+    secondaryContainer = SoftBrown,
+    onSecondaryContainer = DeepBrown,
+    background = Cream,
+    onBackground = DeepBrown,
+    surface = CreamSurface,
+    onSurface = DeepBrown,
+    surfaceVariant = Color(0xFFECE0D1),
+    onSurfaceVariant = Color(0xFF624B3C),
+    outline = Color(0xFF947967)
+)
+
+private val DarkScheme = darkColorScheme(
+    primary = Green,
+    surface = Panel,
+    background = Ink
+)
 
 private val ZamTypography = Typography(
     bodyLarge = TextStyle(fontFamily = FontFamily.SansSerif),
@@ -86,6 +116,7 @@ private fun ZamLinkApp(context: Context) {
     var result by remember { mutableStateOf("Conecta tu laptop para enviar órdenes a Zam.") }
     var isListening by remember { mutableStateOf(false) }
     var screen by remember { mutableStateOf(AppScreen.CHAT) }
+    var useCreamTheme by rememberSaveable { mutableStateOf(true) }
     val messages = remember {
         mutableStateListOf(ChatMessage(true, "Hola. Soy Zam. Conéctame desde Ajustes y mándame una orden cuando quieras."))
     }
@@ -94,12 +125,13 @@ private fun ZamLinkApp(context: Context) {
         if (granted) startVoiceCapture(context, { isListening = it }, { command = it }, { result = it })
         else result = "Necesito permiso de micrófono para transcribir tu voz."
     }
-    MaterialTheme(colorScheme = darkColorScheme(primary = Green, surface = Panel, background = Ink), typography = ZamTypography) {
+    MaterialTheme(colorScheme = if (useCreamTheme) CreamScheme else DarkScheme, typography = ZamTypography) {
+        val colors = MaterialTheme.colorScheme
         Scaffold(
-            containerColor = Ink,
+            containerColor = colors.background,
             contentWindowInsets = WindowInsets.safeDrawing,
             bottomBar = {
-                NavigationBar(containerColor = Panel) {
+                NavigationBar(containerColor = colors.surface) {
                     NavigationBarItem(selected = screen == AppScreen.CHAT, onClick = { screen = AppScreen.CHAT }, icon = { Icon(Icons.Outlined.ChatBubbleOutline, "Chat") }, label = { Text("Chat") })
                     NavigationBarItem(selected = screen == AppScreen.SETTINGS, onClick = { screen = AppScreen.SETTINGS }, icon = { Icon(Icons.Outlined.Settings, "Ajustes") }, label = { Text("Ajustes") })
                 }
@@ -137,7 +169,8 @@ private fun ZamLinkApp(context: Context) {
                                 result = if (ok) "Ekars está listo para recibir órdenes." else "Revisa la dirección o inicia el servidor de Ekars."
                             }
                         }
-                    }, onUpdate = { checkAndDownloadUpdate(context) }, modifier = Modifier.padding(inset)
+                    }, onUpdate = { checkAndDownloadUpdate(context) }, useCreamTheme = useCreamTheme,
+                    onThemeChange = { useCreamTheme = it }, modifier = Modifier.padding(inset)
                 )
             }
         }
@@ -149,19 +182,20 @@ private fun ChatScreen(
     messages: List<ChatMessage>, command: String, onCommandChange: (String) -> Unit, isListening: Boolean, state: String,
     onVoice: () -> Unit, onSend: () -> Unit, modifier: Modifier = Modifier
 ) {
+    val colors = MaterialTheme.colorScheme
     Column(modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Image(painterResource(R.drawable.cat_icon_launcher), "Perfil de Zam", Modifier.size(46.dp).clip(CircleShape).background(Color(0xFF10241E)), contentScale = ContentScale.Crop)
+            Image(painterResource(R.drawable.cat_icon_launcher), "Perfil de Zam", Modifier.size(46.dp).clip(CircleShape).background(colors.secondaryContainer), contentScale = ContentScale.Crop)
             Spacer(Modifier.width(12.dp))
             Column {
-                Text("Zam", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
-                Text(if (state == "Conectado") "En línea · Ekars conectado" else "Asistente de Ekars", color = if (state == "Conectado") Green else Muted, fontSize = 12.sp)
+                Text("Zam", color = colors.onBackground, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+                Text(if (state == "Conectado") "En línea · Ekars conectado" else "Asistente de Ekars", color = if (state == "Conectado") colors.primary else colors.onSurfaceVariant, fontSize = 12.sp)
             }
         }
         LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp), contentPadding = PaddingValues(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             items(messages) { message -> ChatBubble(message) }
         }
-        Surface(color = Panel, modifier = Modifier.fillMaxWidth().imePadding()) {
+        Surface(color = colors.surface, tonalElevation = 2.dp, modifier = Modifier.fillMaxWidth().imePadding()) {
             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(command, onCommandChange, Modifier.fillMaxWidth(), minLines = 1, maxLines = 4,
                     placeholder = { Text("Escribe una orden para Zam…") }, leadingIcon = { Icon(Icons.Outlined.ChatBubbleOutline, null) })
@@ -176,11 +210,13 @@ private fun ChatScreen(
 
 @Composable
 private fun ChatBubble(message: ChatMessage) {
+    val colors = MaterialTheme.colorScheme
     val alignment = if (message.fromZam) Alignment.Start else Alignment.End
-    val color = if (message.fromZam) ZamBubble else Color(0xFF176B50)
+    val color = if (message.fromZam) colors.secondaryContainer else colors.primary
+    val contentColor = if (message.fromZam) colors.onSecondaryContainer else colors.onPrimary
     Column(Modifier.fillMaxWidth(), horizontalAlignment = alignment) {
         Card(colors = CardDefaults.cardColors(containerColor = color), shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth(0.82f)) {
-            Text(message.text, color = Color.White, modifier = Modifier.padding(14.dp))
+            Text(message.text, color = contentColor, modifier = Modifier.padding(14.dp))
         }
     }
 }
@@ -188,24 +224,35 @@ private fun ChatBubble(message: ChatMessage) {
 @Composable
 private fun SettingsScreen(
     endpoint: String, onEndpointChange: (String) -> Unit, state: String, result: String,
-    onTest: () -> Unit, onUpdate: () -> Unit, modifier: Modifier = Modifier
+    onTest: () -> Unit, onUpdate: () -> Unit, useCreamTheme: Boolean, onThemeChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier
 ) {
+    val colors = MaterialTheme.colorScheme
     Column(modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Image(painterResource(R.drawable.cat_icon_launcher), "Zam", Modifier.size(48.dp).clip(CircleShape).background(Color(0xFF10241E)), contentScale = ContentScale.Crop)
+            Image(painterResource(R.drawable.cat_icon_launcher), "Zam", Modifier.size(48.dp).clip(CircleShape).background(colors.secondaryContainer), contentScale = ContentScale.Crop)
             Spacer(Modifier.width(12.dp))
-            Column { Text("Ajustes", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold); Text("Conexión y aplicación", color = Muted, fontSize = 12.sp) }
+            Column { Text("Ajustes", color = colors.onBackground, fontSize = 22.sp, fontWeight = FontWeight.Bold); Text("Conexión y aplicación", color = colors.onSurfaceVariant, fontSize = 12.sp) }
         }
-        Text("CONEXIÓN", color = Muted, fontSize = 12.sp, letterSpacing = 1.sp)
-        Card(colors = CardDefaults.cardColors(containerColor = Panel), modifier = Modifier.fillMaxWidth()) {
+        Text("CONEXIÓN", color = colors.onSurfaceVariant, fontSize = 12.sp, letterSpacing = 1.sp)
+        Card(colors = CardDefaults.cardColors(containerColor = colors.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Outlined.Link, null, tint = Green); Spacer(Modifier.width(10.dp)); Text(state, color = Color.White, fontWeight = FontWeight.Medium) }
+                Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Outlined.Link, null, tint = colors.primary); Spacer(Modifier.width(10.dp)); Text(state, color = colors.onSurface, fontWeight = FontWeight.Medium) }
                 OutlinedTextField(endpoint, onEndpointChange, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Dirección segura de Ekars") }, placeholder = { Text("https://ekars.tu-dominio.com") })
                 Button(onTest, Modifier.fillMaxWidth()) { Text("Probar conexión") }
             }
         }
-        Card(colors = CardDefaults.cardColors(containerColor = Panel), modifier = Modifier.fillMaxWidth()) { Text(result, color = Muted, modifier = Modifier.padding(14.dp), fontSize = 14.sp) }
-        Text("APLICACIÓN", color = Muted, fontSize = 12.sp, letterSpacing = 1.sp)
+        Card(colors = CardDefaults.cardColors(containerColor = colors.surfaceVariant), modifier = Modifier.fillMaxWidth()) { Text(result, color = colors.onSurfaceVariant, modifier = Modifier.padding(14.dp), fontSize = 14.sp) }
+        Text("APARIENCIA", color = colors.onSurfaceVariant, fontSize = 12.sp, letterSpacing = 1.sp)
+        Card(colors = CardDefaults.cardColors(containerColor = colors.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(if (useCreamTheme) Icons.Outlined.LightMode else Icons.Outlined.DarkMode, null, tint = colors.primary)
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) { Text("Tema claro crema", color = colors.onSurface, fontWeight = FontWeight.Medium); Text("Paleta cálida con acentos marrón", color = colors.onSurfaceVariant, fontSize = 12.sp) }
+                Switch(checked = useCreamTheme, onCheckedChange = onThemeChange)
+            }
+        }
+        Text("APLICACIÓN", color = colors.onSurfaceVariant, fontSize = 12.sp, letterSpacing = 1.sp)
         OutlinedButton(onUpdate, Modifier.fillMaxWidth()) { Icon(Icons.Outlined.SystemUpdate, null); Spacer(Modifier.width(8.dp)); Text("Buscar actualización") }
     }
 }
