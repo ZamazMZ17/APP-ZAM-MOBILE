@@ -16,8 +16,8 @@ android {
         applicationId = "com.zamazmz17.zammobile"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "0.1.2"
+        versionCode = 4
+        versionName = "0.1.3"
     }
     signingConfigs {
         create("release") {
@@ -48,6 +48,7 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+    implementation("androidx.compose.material:material-icons-extended")
     implementation(libs.okhttp)
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
