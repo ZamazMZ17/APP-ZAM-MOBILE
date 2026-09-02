@@ -27,7 +27,7 @@ jobs:
           name: zam-link-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push' && github.event.head_commit.message == 'release: v0.1.0'
     needs: build
     runs-on: ubuntu-latest
     permissions:
@@ -61,4 +61,8 @@ jobs:
       - name: Publish APK
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v0.1.0
+          name: ZAM Link v0.1.0
+          target_commitish: ${{ github.sha }}
+          generate_release_notes: true
           files: app/build/outputs/apk/release/app-release.apk
