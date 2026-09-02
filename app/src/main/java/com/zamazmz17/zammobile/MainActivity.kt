@@ -12,8 +12,11 @@ import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -22,6 +25,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -39,6 +44,10 @@ private val Ink = Color(0xFF080B10)
 private val Panel = Color(0xFF111720)
 private val Green = Color(0xFF35D49A)
 private val Muted = Color(0xFF9AA7B5)
+private val ZamBubble = Color(0xFF17212D)
+
+private enum class AppScreen { CHAT, SETTINGS }
+private data class ChatMessage(val fromZam: Boolean, val text: String)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -49,73 +58,133 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun ZamLinkApp(context: Context) {
+    val activity = context as ComponentActivity
     var endpoint by remember { mutableStateOf("") }
     var command by remember { mutableStateOf("") }
     var state by remember { mutableStateOf("Sin enlazar") }
     var result by remember { mutableStateOf("Conecta tu laptop para enviar órdenes a Zam.") }
     var isListening by remember { mutableStateOf(false) }
+    var screen by remember { mutableStateOf(AppScreen.CHAT) }
+    val messages = remember {
+        mutableStateListOf(ChatMessage(true, "Hola. Soy Zam. Conéctame desde Ajustes y mándame una orden cuando quieras."))
+    }
     val executor = remember { Executors.newSingleThreadExecutor() }
     val microphonePermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) startVoiceCapture(context, { isListening = it }, { command = it }, { result = it })
         else result = "Necesito permiso de micrófono para transcribir tu voz."
     }
     MaterialTheme(colorScheme = darkColorScheme(primary = Green, surface = Panel, background = Ink)) {
-        Surface(color = Ink, modifier = Modifier.fillMaxSize()) {
-            Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(46.dp).clip(CircleShape).background(Green), contentAlignment = Alignment.Center) {
-                        Text("Z", color = Ink, fontSize = 24.sp, fontWeight = FontWeight.Black)
-                    }
-                    Spacer(Modifier.width(12.dp))
-                    Column {
-                        Text("ZAM LINK", color = Color.White, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
-                        Text(state, color = if (state == "Conectado") Green else Muted, fontSize = 12.sp)
+        Scaffold(
+            containerColor = Ink,
+            bottomBar = {
+                Surface(color = Panel) {
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp)) {
+                        TextButton({ screen = AppScreen.CHAT }, Modifier.weight(1f)) { Text("CHAT", color = if (screen == AppScreen.CHAT) Green else Muted) }
+                        TextButton({ screen = AppScreen.SETTINGS }, Modifier.weight(1f)) { Text("AJUSTES", color = if (screen == AppScreen.SETTINGS) Green else Muted) }
                     }
                 }
-                OutlinedTextField(endpoint, { endpoint = it.trimEnd('/') }, Modifier.fillMaxWidth(), singleLine = true,
-                    label = { Text("Dirección segura de Ekars") }, placeholder = { Text("https://ekars.tu-dominio.com") })
-                Button(onClick = {
-                    executor.execute {
-                        val ok = ping(endpoint)
-                        state = if (ok) "Conectado" else "No se pudo conectar"
-                        result = if (ok) "Ekars está listo para recibir órdenes." else "Revisa la dirección o inicia el servidor de Ekars."
-                    }
-                }, modifier = Modifier.fillMaxWidth()) { Text("PROBAR CONEXIÓN") }
-                TextButton({ checkAndDownloadUpdate(context) }, Modifier.align(Alignment.CenterHorizontally)) {
-                    Text("Buscar actualización", color = Green)
-                }
-                Text("ORDEN PARA ZAM", color = Muted, fontSize = 12.sp, letterSpacing = 1.sp)
-                OutlinedTextField(command, { command = it }, Modifier.fillMaxWidth(), minLines = 3,
-                    placeholder = { Text("Ej.: toma una captura y dime qué está abierto") })
-                OutlinedButton(
-                    onClick = {
-                        if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+            }
+        ) { inset ->
+            if (screen == AppScreen.CHAT) {
+                ChatScreen(
+                    messages = messages, command = command, onCommandChange = { command = it }, isListening = isListening,
+                    onVoice = {
+                        if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED)
                             startVoiceCapture(context, { isListening = it }, { command = it }, { result = it })
-                        } else microphonePermission.launch(android.Manifest.permission.RECORD_AUDIO)
+                        else microphonePermission.launch(android.Manifest.permission.RECORD_AUDIO)
                     },
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = !isListening
-                ) { Text(if (isListening) "ESCUCHANDO…" else "HABLAR Y TRANSCRIBIR") }
-                Button(onClick = {
-                    val order = command; command = ""; result = "Enviando orden…"
-                    executor.execute { result = sendCommand(endpoint, order) }
-                }, enabled = command.isNotBlank() && endpoint.isNotBlank(), modifier = Modifier.fillMaxWidth()) { Text("ENVIAR A ZAM") }
-                Text("ACCESOS RÁPIDOS", color = Muted, fontSize = 12.sp, letterSpacing = 1.sp)
+                    onSend = {
+                        val order = command.trim()
+                        if (order.isNotBlank()) {
+                            messages.add(ChatMessage(false, order))
+                            command = ""
+                            executor.execute {
+                                val answer = if (endpoint.isBlank()) "Aún no estoy conectado. Ve a Ajustes y agrega la dirección de Ekars."
+                                else sendCommand(endpoint, order)
+                                activity.runOnUiThread { messages.add(ChatMessage(true, answer)) }
+                            }
+                        }
+                    }, modifier = Modifier.padding(inset)
+                )
+            } else {
+                SettingsScreen(
+                    endpoint = endpoint, onEndpointChange = { endpoint = it.trimEnd('/') }, state = state, result = result,
+                    onTest = {
+                        executor.execute {
+                            val ok = ping(endpoint)
+                            activity.runOnUiThread {
+                                state = if (ok) "Conectado" else "No se pudo conectar"
+                                result = if (ok) "Ekars está listo para recibir órdenes." else "Revisa la dirección o inicia el servidor de Ekars."
+                            }
+                        }
+                    }, onUpdate = { checkAndDownloadUpdate(context) }, modifier = Modifier.padding(inset)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChatScreen(
+    messages: List<ChatMessage>, command: String, onCommandChange: (String) -> Unit, isListening: Boolean,
+    onVoice: () -> Unit, onSend: () -> Unit, modifier: Modifier = Modifier
+) {
+    Column(modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+            Image(painterResource(R.drawable.cat_icon_launcher), "Zam", Modifier.size(48.dp).clip(CircleShape).background(Color(0xFF10241E)), contentScale = ContentScale.Crop)
+            Spacer(Modifier.width(12.dp))
+            Column {
+                Text("Zam", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Bold)
+                Text("Asistente de Ekars", color = Muted, fontSize = 12.sp)
+            }
+        }
+        LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            items(messages) { message -> ChatBubble(message) }
+        }
+        Surface(color = Panel, modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(command, onCommandChange, Modifier.fillMaxWidth(), minLines = 1, maxLines = 4,
+                    placeholder = { Text("Escribe una orden para Zam…") })
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    QuickAction("Pantalla") { command = "Toma una captura de pantalla y descríbela." }
-                    QuickAction("Estado") { command = "Dime el estado actual del sistema." }
-                    QuickAction("Escuchar") { command = "Activa el modo escucha." }
-                }
-                Card(colors = CardDefaults.cardColors(containerColor = Panel), modifier = Modifier.fillMaxWidth()) {
-                    Text(result, color = Color.White, modifier = Modifier.padding(16.dp))
+                    OutlinedButton(onVoice, Modifier.weight(1f), enabled = !isListening) { Text(if (isListening) "ESCUCHANDO…" else "VOZ") }
+                    Button(onSend, Modifier.weight(1f), enabled = command.isNotBlank()) { Text("ENVIAR") }
                 }
             }
         }
     }
 }
 
-@Composable private fun RowScope.QuickAction(label: String, click: () -> Unit) {
-    OutlinedButton(click, Modifier.weight(1f), shape = RoundedCornerShape(14.dp)) { Text(label, fontSize = 11.sp) }
+@Composable
+private fun ChatBubble(message: ChatMessage) {
+    val alignment = if (message.fromZam) Alignment.Start else Alignment.End
+    val color = if (message.fromZam) ZamBubble else Color(0xFF176B50)
+    Column(Modifier.fillMaxWidth(), horizontalAlignment = alignment) {
+        Card(colors = CardDefaults.cardColors(containerColor = color), shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth(0.84f)) {
+            Text(message.text, color = Color.White, modifier = Modifier.padding(14.dp))
+        }
+    }
+}
+
+@Composable
+private fun SettingsScreen(
+    endpoint: String, onEndpointChange: (String) -> Unit, state: String, result: String,
+    onTest: () -> Unit, onUpdate: () -> Unit, modifier: Modifier = Modifier
+) {
+    Column(modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Image(painterResource(R.drawable.cat_icon_launcher), "Zam", Modifier.size(48.dp).clip(CircleShape).background(Color(0xFF10241E)), contentScale = ContentScale.Crop)
+            Spacer(Modifier.width(12.dp))
+            Column { Text("Ajustes", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold); Text(state, color = if (state == "Conectado") Green else Muted, fontSize = 12.sp) }
+        }
+        Text("CONEXIÓN CON EKARS", color = Muted, fontSize = 12.sp, letterSpacing = 1.sp)
+        OutlinedTextField(endpoint, onEndpointChange, Modifier.fillMaxWidth(), singleLine = true,
+            label = { Text("Dirección segura de Ekars") }, placeholder = { Text("https://ekars.tu-dominio.com") })
+        Button(onTest, Modifier.fillMaxWidth()) { Text("PROBAR CONEXIÓN") }
+        Card(colors = CardDefaults.cardColors(containerColor = Panel), modifier = Modifier.fillMaxWidth()) { Text(result, color = Color.White, modifier = Modifier.padding(14.dp)) }
+        HorizontalDivider(color = Color(0xFF263442))
+        Text("APLICACIÓN", color = Muted, fontSize = 12.sp, letterSpacing = 1.sp)
+        OutlinedButton(onUpdate, Modifier.fillMaxWidth()) { Text("BUSCAR ACTUALIZACIÓN") }
+    }
 }
 
 private fun ping(base: String): Boolean = try {
