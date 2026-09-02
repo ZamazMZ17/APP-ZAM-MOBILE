@@ -27,7 +27,7 @@ jobs:
           name: zam-link-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
   release:
-    if: github.event_name == 'push' && github.event.head_commit.message == 'release: v0.1.0'
+    if: github.event_name == 'push' && github.event.head_commit.message == 'release-v0.1.0'
     needs: build
     runs-on: ubuntu-latest
     permissions:
