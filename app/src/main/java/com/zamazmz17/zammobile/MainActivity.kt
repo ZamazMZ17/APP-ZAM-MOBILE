@@ -2,11 +2,16 @@ package com.zamazmz17.zammobile
 
 import android.app.DownloadManager
 import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -25,6 +30,9 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
 import java.util.concurrent.Executors
 
 private val Ink = Color(0xFF080B10)
@@ -45,7 +53,12 @@ private fun ZamLinkApp(context: Context) {
     var command by remember { mutableStateOf("") }
     var state by remember { mutableStateOf("Sin enlazar") }
     var result by remember { mutableStateOf("Conecta tu laptop para enviar órdenes a Zam.") }
+    var isListening by remember { mutableStateOf(false) }
     val executor = remember { Executors.newSingleThreadExecutor() }
+    val microphonePermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) startVoiceCapture(context, { isListening = it }, { command = it }, { result = it })
+        else result = "Necesito permiso de micrófono para transcribir tu voz."
+    }
     MaterialTheme(colorScheme = darkColorScheme(primary = Green, surface = Panel, background = Ink)) {
         Surface(color = Ink, modifier = Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -68,9 +81,21 @@ private fun ZamLinkApp(context: Context) {
                         result = if (ok) "Ekars está listo para recibir órdenes." else "Revisa la dirección o inicia el servidor de Ekars."
                     }
                 }, modifier = Modifier.fillMaxWidth()) { Text("PROBAR CONEXIÓN") }
+                TextButton({ checkAndDownloadUpdate(context) }, Modifier.align(Alignment.CenterHorizontally)) {
+                    Text("Buscar actualización", color = Green)
+                }
                 Text("ORDEN PARA ZAM", color = Muted, fontSize = 12.sp, letterSpacing = 1.sp)
                 OutlinedTextField(command, { command = it }, Modifier.fillMaxWidth(), minLines = 3,
                     placeholder = { Text("Ej.: toma una captura y dime qué está abierto") })
+                OutlinedButton(
+                    onClick = {
+                        if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                            startVoiceCapture(context, { isListening = it }, { command = it }, { result = it })
+                        } else microphonePermission.launch(android.Manifest.permission.RECORD_AUDIO)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isListening
+                ) { Text(if (isListening) "ESCUCHANDO…" else "HABLAR Y TRANSCRIBIR") }
                 Button(onClick = {
                     val order = command; command = ""; result = "Enviando orden…"
                     executor.execute { result = sendCommand(endpoint, order) }
@@ -84,8 +109,6 @@ private fun ZamLinkApp(context: Context) {
                 Card(colors = CardDefaults.cardColors(containerColor = Panel), modifier = Modifier.fillMaxWidth()) {
                     Text(result, color = Color.White, modifier = Modifier.padding(16.dp))
                 }
-                Spacer(Modifier.weight(1f))
-                TextButton({ checkAndDownloadUpdate(context) }, Modifier.align(Alignment.CenterHorizontally)) { Text("Buscar actualización", color = Green) }
             }
         }
     }
@@ -106,6 +129,46 @@ private fun sendCommand(base: String, command: String): String = try {
         else "Ekars rechazó la orden (${it.code})."
     }
 } catch (_: Exception) { "No se pudo enviar la orden. Comprueba que Ekars esté conectado." }
+
+private fun startVoiceCapture(
+    context: Context,
+    onListening: (Boolean) -> Unit,
+    onTranscript: (String) -> Unit,
+    onError: (String) -> Unit
+) {
+    if (!SpeechRecognizer.isRecognitionAvailable(context)) {
+        onError("El reconocimiento de voz no está disponible en este celular.")
+        return
+    }
+    val recognizer = SpeechRecognizer.createSpeechRecognizer(context)
+    onListening(true)
+    recognizer.setRecognitionListener(object : RecognitionListener {
+        override fun onReadyForSpeech(params: Bundle?) = Unit
+        override fun onBeginningOfSpeech() = Unit
+        override fun onRmsChanged(rmsdB: Float) = Unit
+        override fun onBufferReceived(buffer: ByteArray?) = Unit
+        override fun onEndOfSpeech() = Unit
+        override fun onPartialResults(partialResults: Bundle?) {
+            partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()?.let(onTranscript)
+        }
+        override fun onResults(results: Bundle?) {
+            results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()?.let(onTranscript)
+            onListening(false)
+            recognizer.destroy()
+        }
+        override fun onError(error: Int) {
+            onListening(false)
+            onError("No pude entender el audio. Inténtalo otra vez.")
+            recognizer.destroy()
+        }
+        override fun onEvent(eventType: Int, params: Bundle?) = Unit
+    })
+    recognizer.startListening(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+        putExtra(RecognizerIntent.EXTRA_LANGUAGE, "es-PE")
+        putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+    })
+}
 
 private fun checkAndDownloadUpdate(context: Context) {
     Executors.newSingleThreadExecutor().execute {
