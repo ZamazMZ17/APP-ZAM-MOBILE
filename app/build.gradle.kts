@@ -6,6 +6,11 @@ plugins {
 android {
     namespace = "com.zamazmz17.zammobile"
     compileSdk = 35
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+    kotlinOptions { jvmTarget = "17" }
     defaultConfig {
         // Never change after first public install: this is Android's permanent app identity.
         applicationId = "com.zamazmz17.zammobile"
