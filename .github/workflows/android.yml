@@ -1,0 +1,47 @@
+name: Android APK
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: '8.10.2' }
+      - run: gradle :app:assembleDebug
+      - uses: actions/upload-artifact@v4
+        with: { name: zam-link-debug-apk, path: app/build/outputs/apk/debug/app-debug.apk }
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: '8.10.2' }
+      - name: Restore permanent signing key
+        env: { KEYSTORE_B64: ${{ secrets.ZAM_KEYSTORE_B64 }} }
+        run: echo "$KEYSTORE_B64" | base64 --decode > app/zam-release.jks
+      - name: Build signed release
+        env:
+          ZAM_STORE_PASSWORD: ${{ secrets.ZAM_STORE_PASSWORD }}
+          ZAM_KEY_ALIAS: ${{ secrets.ZAM_KEY_ALIAS }}
+          ZAM_KEY_PASSWORD: ${{ secrets.ZAM_KEY_PASSWORD }}
+        run: >-
+          gradle :app:assembleRelease
+          -Pandroid.injected.signing.store.file=$GITHUB_WORKSPACE/app/zam-release.jks
+          -Pandroid.injected.signing.store.password=$ZAM_STORE_PASSWORD
+          -Pandroid.injected.signing.key.alias=$ZAM_KEY_ALIAS
+          -Pandroid.injected.signing.key.password=$ZAM_KEY_PASSWORD
+      - uses: softprops/action-gh-release@v2
+        with: { files: app/build/outputs/apk/release/app-release.apk }
