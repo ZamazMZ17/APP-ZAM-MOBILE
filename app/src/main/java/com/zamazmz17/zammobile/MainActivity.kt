@@ -34,6 +34,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
@@ -53,6 +54,18 @@ private val Panel = Color(0xFF111720)
 private val Green = Color(0xFF35D49A)
 private val Muted = Color(0xFF9AA7B5)
 private val ZamBubble = Color(0xFF17212D)
+
+private val ZamTypography = Typography(
+    bodyLarge = TextStyle(fontFamily = FontFamily.SansSerif),
+    bodyMedium = TextStyle(fontFamily = FontFamily.SansSerif),
+    bodySmall = TextStyle(fontFamily = FontFamily.SansSerif),
+    titleLarge = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.SemiBold),
+    titleMedium = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.SemiBold),
+    titleSmall = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.SemiBold),
+    labelLarge = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Medium),
+    labelMedium = TextStyle(fontFamily = FontFamily.SansSerif),
+    labelSmall = TextStyle(fontFamily = FontFamily.SansSerif)
+)
 
 private enum class AppScreen { CHAT, SETTINGS }
 private data class ChatMessage(val fromZam: Boolean, val text: String)
@@ -81,7 +94,7 @@ private fun ZamLinkApp(context: Context) {
         if (granted) startVoiceCapture(context, { isListening = it }, { command = it }, { result = it })
         else result = "Necesito permiso de micrófono para transcribir tu voz."
     }
-    MaterialTheme(colorScheme = darkColorScheme(primary = Green, surface = Panel, background = Ink), typography = Typography(defaultFontFamily = FontFamily.SansSerif)) {
+    MaterialTheme(colorScheme = darkColorScheme(primary = Green, surface = Panel, background = Ink), typography = ZamTypography) {
         Scaffold(
             containerColor = Ink,
             contentWindowInsets = WindowInsets.safeDrawing,
